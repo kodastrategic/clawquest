@@ -302,7 +302,62 @@ function startGame(tm) {
     ui.style.display = 'flex'; 
     mainHUD.style.display = 'flex'; 
     radarContainer.style.display = 'block';
+
+    // Ativa controles mobile se for touch
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        document.getElementById('mobileControls').style.display = 'block';
+        initMobileControls();
+    }
+
     updateStaminaUI(); updateHPUI(); updatePEMHUD(); updateBoostHUD();
+}
+
+let moveJoy = { x: 0, y: 0, active: false }, shootJoy = { x: 0, y: 0, active: false };
+
+function initMobileControls() {
+    const joyM = document.getElementById('joystickMove'), stickM = joyM.querySelector('.joystick-stick');
+    const joyS = document.getElementById('joystickShoot'), stickS = joyS.querySelector('.joystick-stick');
+
+    const handleJoy = (e, joy, stick, isMove) => {
+        const rect = joy.getBoundingClientRect();
+        const touch = Array.from(e.touches).find(t => 
+            t.clientX >= rect.left && t.clientX <= rect.right &&
+            t.clientY >= rect.top && t.clientY <= rect.bottom
+        );
+        if (!touch) return;
+
+        const centerX = rect.left + rect.width / 2, centerY = rect.top + rect.height / 2;
+        let dx = touch.clientX - centerX, dy = touch.clientY - centerY;
+        const dist = Math.hypot(dx, dy), max = rect.width / 2;
+        
+        if (dist > max) { dx *= max/dist; dy *= max/dist; }
+        
+        stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+        joy.x = dx / max; joy.y = dy / max; joy.active = true;
+    };
+
+    const resetJoy = (joy, stick) => {
+        stick.style.transform = 'translate(-50%, -50%)';
+        joy.x = 0; joy.y = 0; joy.active = false;
+    };
+
+    window.addEventListener('touchstart', e => { 
+        handleJoy(e, moveJoy, stickM, true); 
+        handleJoy(e, shootJoy, stickS, false); 
+    });
+    window.addEventListener('touchmove', e => { 
+        handleJoy(e, moveJoy, stickM, true); 
+        handleJoy(e, shootJoy, stickS, false); 
+    });
+    window.addEventListener('touchend', e => {
+        // Verifica qual toque saiu
+        const touches = Array.from(e.touches);
+        if (!touches.some(t => t.clientX < window.innerWidth/2)) resetJoy(moveJoy, stickM);
+        if (!touches.some(t => t.clientX >= window.innerWidth/2)) resetJoy(shootJoy, stickS);
+    });
+
+    document.getElementById('btnPemMobile').onclick = dispararPEM;
+    document.getElementById('btnBoostMobile').onclick = usarBoost;
 }
 
 function updateScrapUI() { const scrapEl = document.getElementById('scrapVal'); if (scrapEl) scrapEl.innerText = player.scrap || 0; }
@@ -348,9 +403,23 @@ function returnToMenu() {
 }
 
 function update() {
-    if (!gameActive) return; if (player.weapon === 'mg' && mouse.down) shoot();
-    const isM = (keys['KeyW'] || keys['KeyS'] || keys['KeyA'] || keys['KeyD']), shift = keys['ShiftLeft'] || keys['ShiftRight'];
-    let canS = shift && (player.stamina > 0 || player.currentSpendingBar > 0) && isM;
+    if (!gameActive) return; 
+
+    // --- CONTROLES COMBINADOS (MOBILE + TECLADO) ---
+    if (shootJoy.active) {
+        player.angle = Math.atan2(shootJoy.y, shootJoy.x);
+        shoot(); // Atira automaticamente ao mover o joystick de tiro
+    } else if (!('ontouchstart' in window)) {
+        player.angle = Math.atan2(mouse.y - (canvas.height/2), mouse.x - (canvas.width/2));
+    }
+
+    if (player.weapon === 'mg' && mouse.down) shoot();
+
+    const isM = (keys['KeyW'] || keys['KeyS'] || keys['KeyA'] || keys['KeyD'] || moveJoy.active);
+    let canS = (keys['ShiftLeft'] || keys['ShiftRight']) && (player.stamina > 0 || player.currentSpendingBar > 0) && isM;
+    
+    // Boost automático no mobile se o joystick estiver no limite? (Opcional, vamos manter manual por enquanto)
+
     if (canS) { 
         player.stamina -= 0.8; 
         if (player.stamina <= 0 && player.currentSpendingBar > 0) { 
@@ -367,13 +436,33 @@ function update() {
         } 
         player.accel = CONFIG.PLAYER.ACCEL; 
     }
+
+    // Aplica Movimento
+    if (moveJoy.active) {
+        player.vx += moveJoy.x * player.accel;
+        player.vy += moveJoy.y * player.accel;
+    } else {
+        if (keys['KeyW']) player.vy -= player.accel; 
+        if (keys['KeyS']) player.vy += player.accel; 
+        if (keys['KeyA']) player.vx -= player.accel; 
+        if (keys['KeyD']) player.vx += player.accel;
+    }
+
+    player.vx *= player.friction; player.vy *= player.friction; 
     const curM = canS ? player.sprintSpeed : player.walkSpeed;
-    if (keys['KeyW']) player.vy -= player.accel; if (keys['KeyS']) player.vy += player.accel; if (keys['KeyA']) player.vx -= player.accel; if (keys['KeyD']) player.vx += player.accel;
-    player.vx *= player.friction; player.vy *= player.friction; let spd = Math.hypot(player.vx, player.vy); if (spd > curM) { player.vx = (player.vx / spd) * curM; player.vy = (player.vy / spd) * curM; }
+    let spd = Math.hypot(player.vx, player.vy); 
+    if (spd > curM) { player.vx = (player.vx / spd) * curM; player.vy = (player.vy / spd) * curM; }
+    
     player.x += player.vx; player.y += player.vy;
-    const tx = player.x - Math.cos(player.angle)*35, ty = player.y - Math.sin(player.angle)*35; trail.push({ x: tx, y: ty, life: 1.0 }); if (trail.length > CONFIG.CAUDA.COMPRIMENTO) trail.shift();
+    
+    const tx = player.x - Math.cos(player.angle)*35, ty = player.y - Math.sin(player.angle)*35; 
+    trail.push({ x: tx, y: ty, life: 1.0 }); 
+    if (trail.length > CONFIG.CAUDA.COMPRIMENTO) trail.shift();
+    
     trail.forEach((t, i) => { t.life -= 0.02; if (t.life <= 0) trail.splice(i, 1); });
-    player.angle = Math.atan2(mouse.y - (canvas.height/2), mouse.x - (canvas.width/2)); camera.x = player.x - canvas.width / 2; camera.y = player.y - canvas.height / 2;
+    
+    camera.x = player.x - canvas.width / 2; camera.y = player.y - canvas.height / 2;
+    // ... resto do código ...
     orbes.forEach((o, i) => { o.angle += CONFIG.GAMEPLAY.ORBE_VEL; o.x = player.x + Math.cos(o.angle) * CONFIG.GAMEPLAY.ORBE_RAIO; o.y = player.y + Math.sin(o.angle) * CONFIG.GAMEPLAY.ORBE_RAIO; });
     shocks.forEach((s, i) => { s.r += 15; s.life -= 0.02; if (s.life <= 0) shocks.splice(i, 1); });
     

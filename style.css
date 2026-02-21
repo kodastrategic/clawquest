@@ -637,6 +637,98 @@ input[type=range] {
     border-radius: 3px;
 }
 
+/* --- MOBILE CONTROLS --- */
+#mobileControls {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.joystick-base {
+    position: absolute;
+    bottom: 50px;
+    width: 120px;
+    height: 120px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(0, 255, 0, 0.3);
+    border-radius: 50%;
+    pointer-events: auto;
+    touch-action: none;
+}
+
+#joystickMove { left: 40px; }
+#joystickShoot { right: 40px; }
+
+.joystick-stick {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 50px;
+    height: 50px;
+    background: rgba(0, 255, 0, 0.5);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+}
+
+#mobileButtons {
+    position: absolute;
+    bottom: 180px;
+    right: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    pointer-events: auto;
+}
+
+.mobile-action-btn {
+    width: 60px;
+    height: 60px;
+    background: rgba(10, 10, 10, 0.8);
+    border: 2px solid #00ff00;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #00ff00;
+    font-family: 'Press Start 2P';
+    font-size: 10px;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+/* Responsividade de HUD para Mobile */
+@media (max-width: 768px) {
+    #mainHUD {
+        transform: scale(0.7);
+        top: 10px;
+        left: 10px;
+    }
+    #ui {
+        transform: translateX(-50%) scale(0.8);
+        top: 5px;
+        gap: 10px;
+    }
+    #radarContainer {
+        display: none !important; /* Radar ocupa muito espaço no mobile */
+    }
+    #mainMenu {
+        min-width: 90%;
+        flex-direction: column;
+        padding: 15px;
+        gap: 15px;
+        overflow-y: auto;
+        height: 90%;
+    }
+    #menuPoster {
+        width: 100%;
+        height: 150px;
+    }
+    .pixel-title {
+        font-size: 1.2em;
+    }
+}
+
 /* --- AMMO PACK (HTML RENDER) --- */
 .mob-ammo {
     position: absolute;
